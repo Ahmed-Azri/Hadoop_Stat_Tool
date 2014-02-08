@@ -7,8 +7,6 @@ import java.util.Iterator;
 
 class DuringTime implements Comparable<DuringTime>
 {
-//	static SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-
 	String dateString;
 	Date date;
 	boolean start;

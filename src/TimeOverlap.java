@@ -10,69 +10,93 @@ import java.util.LinkedList;
 import java.util.Collections;
 import java.util.Iterator;
 
+/*
+ * This class list the data transferring timestamp in increasing order, and
+ * show that in which time there are some overlap flow.
+ * For the overlap flow, we seperate the flow into pod-local flow and non-pod-local flow
+ */
 public class TimeOverlap
 {
-//	static SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-
 	String inputFileName;
+
+	/**
+	 * A tmp instance that holds the record of data transferring.
+	 * key: host that receives data
+	 * value: a priority queue holding the list of record
+	 */
 	HashMap<String, DuringTimePQ> timelineToFetch;
 
-	//Pair: String-> dst, second: src
+	/**
+	 * A list of timestamps we compute.
+	 * We seperate the start and end time into different DuringTime instance.
+	 * Pair: First -> dst Second -> src
+	 */
 	LinkedList<Pair<String, DuringTime>> timeline;
+
+	/**
+	 * Another result list recording the overlap flows stat.
+	 */
 	LinkedList<StatTimeLineStruct> statTimelineList;
 	
+	/**
+	 * A flag to check if the input file is correct.
+	 * If the flag is false, we refuse to compute the result.
+	 */
 	boolean fileOkay;
-
-	//use StatConst
-//	String[] hostIndex;
-
-//	String[] podLocalHost;
 
 	public TimeOverlap(String inputFile)
 	{
+		/* Here we read the file and record the data transferring timestamp
+		 * inputfile format:
+		 * receiver1:
+		 *     total: total_received_bytes
+		 *     total_no_local: total_no_local_received_bytes
+		 *     from sender1:
+		 *	       received_byte1
+		 *	   from sender2:
+		 *	       received_byte2
+		 *     start_time1 - end_time1 : sender1
+		 *     start_time2 - end_time2 : sender2
+		 *     ...
+		 *
+		 * receiver2:
+		 *     ...
+		 */
 		inputFileName = inputFile;
-/*		hostIndex = new String[4];
-		hostIndex[0] = "master";
-		hostIndex[1] = "slave1";
-		hostIndex[2] = "slave2";
-		hostIndex[3] = "slave3";*/
 
 		timeline = new LinkedList<Pair<String, DuringTime>>();
 		timelineToFetch = new HashMap<String, DuringTimePQ>();
 		for(String host : StatConst.host)
 			timelineToFetch.put(host, new DuringTimePQ());
-/*		timelineToFetch.put("master", new DuringTimePQ());
-		timelineToFetch.put("slave1", new DuringTimePQ());
-		timelineToFetch.put("slave2", new DuringTimePQ());
-		timelineToFetch.put("slave3", new DuringTimePQ());*/
 		statTimelineList = null;
 
-/*		podLocalHost = new String[2];
-		podLocalHost[0] = "master";
-		podLocalHost[1] = "slave1";*/
 		try
 		{
 			DataInputStream in = new DataInputStream(new FileInputStream(inputFileName));
 			BufferedReader br = new BufferedReader(new InputStreamReader(in));
 			String line;
 
-			String currentHost = null;
+			//current processing receiver
+			String currentReceiver = null;
 			boolean isFrom = false;
 			long id = 0;
+
 			readLineLabel:
 			while((line = br.readLine()) != null)
 			{
-//				for(String host : hostIndex)
+				//check if we have finish a host, and ready to
+				//count another host (i.e. we read a line such as "host1:").
 				for(String host : StatConst.host)
 				{
 					if(line.startsWith(host + ":"))
 					{
-						currentHost = host;
+						currentReceiver = host;
 						continue readLineLabel;
 					}
 				}
 
-				if(currentHost == null)
+				//ignore all the message that is not the timestamp
+				if(currentReceiver == null)
 					continue;
 				if(line.equals(""))
 					continue;
@@ -88,22 +112,28 @@ public class TimeOverlap
 					isFrom = false;
 					continue;
 				}
+
+				//process the line that recored the timestamp
+				//fetch the token in the format: start_time - end_time : sender
 				String timelineString = line.substring(1);
 				StringTokenizer strtok = new StringTokenizer(timelineString, " ");
 				String startTimeStr = strtok.nextToken();
 				String delim = strtok.nextToken();
 				String endTimeStr = strtok.nextToken();
 				delim = strtok.nextToken();
-				String srcHost = strtok.nextToken();
-				if(!srcHost.equals(StatConst.podLocalHost[0]) && !srcHost.equals(StatConst.podLocalHost[1]))
+				String sender = strtok.nextToken();
+
+				//we only trace the transferring that sender is in podLocalHost
+				//Note that if we want to trace all the transferring, remove this statement
+				if(!sender.equals(StatConst.podLocalHost[0]) && !sender.equals(StatConst.podLocalHost[1]))
 					continue;
 
-				DuringTime startDate = new DuringTime(srcHost, startTimeStr, true, id);
-				DuringTime endDate = new DuringTime(srcHost, endTimeStr, false, id);
+				DuringTime startDate = new DuringTime(sender, startTimeStr, true, id);
+				DuringTime endDate = new DuringTime(sender, endTimeStr, false, id);
 				id++;
 				
-				timelineToFetch.get(currentHost).add(startDate);
-				timelineToFetch.get(currentHost).add(endDate);
+				timelineToFetch.get(currentReceiver).add(startDate);
+				timelineToFetch.get(currentReceiver).add(endDate);
 			}
 			in.close();
 			fileOkay = true;
@@ -113,19 +143,34 @@ public class TimeOverlap
 			fileOkay = false;
 		}
 	}
+
+	/*
+	 * Main method to compute the result.
+	 */
 	public void doIt()
 	{
 		while(true)
 		{
-			//check timelineToFetch
-			//fetch the earliest dt
+			/*
+			 * 1. check the earliest DuringTime in timelineToFetch, record it in isFetch
+			 * 2. fetch the DuringTime according to isFetch
+			 * 3. sort the fetch result
+			 * 4. insert the result to timeline instance
+			 */
+
+			//we use list to hold the fetch result from timelineToFetch,
+			//because there may be many transferring start/end at the same time
 			LinkedList<Pair<String, DuringTime>> dtList
 					= new LinkedList<Pair<String,DuringTime>>();
+
+			//the instance recording the set of host that has earliest DuringTime
 			HashSet<String> isFetch = new HashSet<String>();
 
-//			for(String h : hostIndex)
+			//step 1
 			for(String h : StatConst.host)
 			{
+				//we iterate each host's queue, check that if the 
+				//head of the queue is earliest one
 				if(timelineToFetch.get(h).isEmpty())
 					continue;
 				DuringTime dtToFetch = timelineToFetch.get(h).peek();
@@ -150,21 +195,28 @@ public class TimeOverlap
 				}
 			}
 
+			//no DuringTime can be fetch
 			if(dtList.isEmpty())
 				break;
 
+			//step 2
 			dtList.clear();
 			for(String fetchHost : isFetch)
 			{
 				DuringTime dtToFetch = timelineToFetch.get(fetchHost).pop();
 				dtList.add(new Pair<String, DuringTime>(fetchHost,dtToFetch));
 			}
+
+			//step 3
 			sort(dtList);
-			//check if the dt interrupt the duration of a transmission
+
+			//step 4
 			if(timeline.isEmpty())
 				timeline.addAll(dtList);
 			else
 			{
+				//check if the dt interrupt the duration of a transmission
+				//this may be redundant, because we sort the timeline at the end
 				int index = 0;
 				for(int i=0;i<timeline.size();i++)
 				{
@@ -180,13 +232,22 @@ public class TimeOverlap
 			}
 		}
 
-		// 
+		//compute the overlap flows
 		statTimeline();
 	}
 	public void statTimeline()
 	{
 		if(timeline.isEmpty())
 			return;
+
+		//TODO: this need to be modify to make podLocalFlowCount generate
+		//and debug the flow in second
+		/*
+		 * currentDate : current timestamp we stat
+		 * flowCount : the total num of flows at currentDate
+		 * podLocalFlowCount01 : the local num of flows from podLocalHost[0] to podLocalHost[1]
+		 * flowInSecond: 
+		 * */ 
 		Date currentDate = timeline.get(0).second.getDate();
 		int flowCount = 0;
 		int podLocalFlowCount01 = 0;
@@ -213,13 +274,13 @@ public class TimeOverlap
 					currentDate = dt.getDate();
 				}
 				flowCount++;
-				if((dst.equals(StatConst.podLocalHost[0]) && 
-					dt.getRemote().equals(StatConst.podLocalHost[1])))
+				if((dst.equals(StatConst.podLocalHost[0]) 
+					&& dt.getRemote().equals(StatConst.podLocalHost[1])))
 				{
 					podLocalFlowCount10++;
 				}
-				if((dst.equals(StatConst.podLocalHost[1]) && 
-					dt.getRemote().equals(StatConst.podLocalHost[0])))
+				if((dst.equals(StatConst.podLocalHost[1]) 
+					&& dt.getRemote().equals(StatConst.podLocalHost[0])))
 				{
 					podLocalFlowCount01++;
 				}
@@ -231,8 +292,8 @@ public class TimeOverlap
 				Pair<String, DuringTime> theStartOne = null;
 				for(Pair<String, DuringTime> startElement : startDTList)
 				{
-					if(startElement.first.equals(dst) && 
-						startElement.second.getRemote().equals(dt.getRemote()))
+					if(startElement.first.equals(dst) 
+						&& startElement.second.getRemote().equals(dt.getRemote()))
 					{
 						theStartOne = startElement;
 						startDTList.remove(startElement);
@@ -259,13 +320,13 @@ public class TimeOverlap
 					podLocalFlowInSecond01 = 0;
 				}
 				flowCount--;
-				if((dst.equals(StatConst.podLocalHost[0]) && 
-					dt.getRemote().equals(StatConst.podLocalHost[1])))
+				if((dst.equals(StatConst.podLocalHost[0]) 
+					&& dt.getRemote().equals(StatConst.podLocalHost[1])))
 				{
 					podLocalFlowCount10--;
 				}
-				if((dst.equals(StatConst.podLocalHost[1]) && 
-					dt.getRemote().equals(StatConst.podLocalHost[0])))
+				if((dst.equals(StatConst.podLocalHost[1]) 
+					&& dt.getRemote().equals(StatConst.podLocalHost[0])))
 				{
 					podLocalFlowCount01--;
 				}
@@ -338,15 +399,51 @@ public class TimeOverlap
 			dtList.add(p);
 		}
 	}
+
+	/*
+	 * The class to record the stat of overlap flows
+	 * TODO: This should be modified to make generate
+	 */
 	class StatTimeLineStruct
 	{
+		/**
+		 * Start date of the flow.
+		 */
 		Date startDate;
+
+		/**
+		 * End date of the flow.
+		 */
 		Date endDate;
+
+		/**
+		 * The total num of flow in the duration.
+		 */
 		int flowCount;
+
+		/**
+		 * The total local num of flow in the duration.
+		 */
 		int localCount;
+
+		/**
+		 * String of start startDate.
+		 */
 		String startDateStr;
+
+		/**
+		 * String of end startDate.
+		 */
 		String endDateStr;
+
+		/**
+		 * The num of flow from podLocalHost[0] to podLocalHost[1]
+		 */
 		int from_0_to_1;
+
+		/**
+		 * The num of flow from podLocalHost[1] to podLocalHost[0]
+		 */
 		int from_1_to_0;
 		public StatTimeLineStruct(Date startDate, Date endDate, int flowCount, 
 								int flowInSecond, int from_0_to_1, int from_1_to_0)

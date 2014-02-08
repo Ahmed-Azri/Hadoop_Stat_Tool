@@ -9,20 +9,47 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Collections;
 
+/*
+ * MRStat is use to count the result of hadoop MR job
+ */
 public class MRStat
 {
-
 	SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
 
+	/**
+	 * localSide is the host that received data from others.
+	 */
 	String localSide;
+
+	/**
+	 * fileNameList is the Reducer logs of the localSide.
+	 */
 	String []fileNameList;
 	DataInputStream in;
 
+	/**
+	 * total received bytes (including localSide itself).
+	 */
 	int total;
+
+	/**
+	 * total remote received bytes.
+	 */
 	int total_without_local;
+
+	/**
+	 * The total received bytes from a host.
+	 * key: remote host
+	 */
 	HashMap<String, Integer> receiveSize;
 
+	/**
+	 * A list that record the timestamp of receiving data to localSide.
+	 * The list is in the increasing order.
+	 * The DuringTime class is the private class of MRStat.
+	 */
 	LinkedList<DuringTime> duringTimeTable;
+
 	public MRStat(String localSide, String[] fileNameList)
 	{
 		this.localSide = localSide;
@@ -40,6 +67,13 @@ public class MRStat
 		duringTimeTable = new LinkedList<DuringTime>();
 	}
 
+	/**
+	 * Main method to count the result.
+	 * In this method we iterate the file, for each file we
+	 * fetch the keyword "Start" and "End" to decide the data
+	 * transferring duration. If we miss a keyword "End", it 
+	 * may be a cleanup task, we ignore it.
+	 */
 	public void doIt()
 	{
 		for(String fileName : fileNameList)
@@ -49,36 +83,56 @@ public class MRStat
 				in = new DataInputStream(new FileInputStream(fileName));
 				BufferedReader br = new BufferedReader(new InputStreamReader(in));
 				String line;
+
+				//a set to record remote hosts that have start to transfer
 				HashSet<String> remoteStart = new HashSet<String>();
+
 				while((line = br.readLine()) != null)
 				{
+					//for a line including "Start" or "End", it must has "### " before the keyword
+					//prune it
 					int index = line.indexOf("### ");
 					if(index <0)
 						continue;
 					String s = line.substring(index+4);
 					if(s.startsWith("Start"))
 					{
+						/*
+						 * Start message format:
+						 * Start remoteSide time
+						 * e.g. Start master 14:00:00
+						 */
 						s = s.substring(5);
 						StringTokenizer strtok = new StringTokenizer(s, " ");
 						String remoteSide = strtok.nextToken();
 						String time = strtok.nextToken();
 
 						//if we have found the remoteSide in remoteStart, the log file has error
+						//because there must have exact one connection to the remoteSide.
 						if(remoteStart.contains(remoteSide))
 							throw new Exception(fileName + " in start, remoteStart has contained element: " + remoteSide);
 						remoteStart.add(remoteSide);
 
 						DuringTime dt = new DuringTime(remoteSide, time);
 						duringTimeTable.add(dt);
+
+						//sort the list to be increasing order
 						Collections.sort(duringTimeTable);
 					}
 					else if(s.startsWith("End"))
 					{
+						/*
+						 * End message format:
+						 * End remoteSide time receiveSize
+						 * e.g. End master 14:00:02 1024
+						 */
 						s = s.substring(3);
 						StringTokenizer strtok = new StringTokenizer(s, " ");
 						String remoteSide = strtok.nextToken();
 						String time = strtok.nextToken();
 						String size = strtok.nextToken();
+
+						//iterate the list, search the one that start the transferring
 						for(DuringTime dt : duringTimeTable)
 						{
 							if(remoteSide.equals(dt.getRemote()) && !dt.isEnd())
@@ -111,11 +165,11 @@ public class MRStat
 						if(!dt.isEnd())
 							indexToRemove.add(duringTimeTable.indexOf(dt));
 					}
-					int c = 0;
+					int hasRemoveNum = 0;
 					for(Integer i : indexToRemove)
 					{
-						duringTimeTable.remove(i.intValue() - c);
-						c++;
+						duringTimeTable.remove(i.intValue() - hasRemoveNum);
+						hasRemoveNum++;
 					}
 				}
 			} catch(Exception e)
@@ -124,6 +178,10 @@ public class MRStat
 			}
 		}
 	}
+
+	/*
+	 * A method to show the result to a specific file
+	 */
 	public void dumpFile(String fn)
 	{
 		try
@@ -137,6 +195,8 @@ public class MRStat
 			System.out.println("Write to file " + fn + " error. " + e.getMessage());
 		}
 	}
+
+	@Override
 	public String toString()
 	{
 		StringBuffer sb = new StringBuffer(localSide);
@@ -162,13 +222,39 @@ public class MRStat
 		return sb.toString();
 	}
 
+	/*
+	 * The helper class to record the duration of a transferring
+	 */
 	private class DuringTime implements Comparable<DuringTime>
 	{
+		/**
+		 * String of the start time.
+		 * Format: HH:mm:ss
+		 */
 		String start;
+		/**
+		 * String of the end time.
+		 * Format: HH:mm:ss
+		 */
 		String end;
+
+		/**
+		 * Remote side that send data to the localSide.
+		 */
 		String remote;
+
+		/**
+		 * The date of the start time.
+		 */
 		Date date;
+
+		/**
+		 * A flag to indicate if the instance has both start and end time.
+		 * If there are both start and end time, it is a complete transferring,
+		 * or some error occur (may be a cleanup task).
+		 */
 		boolean _end;
+
 		public DuringTime(String remote, String start)
 		{
 			this.remote = remote;
@@ -258,7 +344,7 @@ public class MRStat
 	{
 		if(args.length <3)
 		{
-			System.out.println("Usage: localSide OutputFile filenameList...");
+			System.out.println("Usage: MRStat <localSide> <OutputFile> <filenameList...>");
 			return;
 		}
 
