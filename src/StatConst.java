@@ -4,8 +4,8 @@ import java.text.SimpleDateFormat;
 
 public class StatConst
 {
-	static final int podTotalNum = 2;
-	static final int hostTotalNum = 4;
+	static final int podTotalNum = 4;
+	static final int hostTotalNum = 16;
 	static int podHostNum = hostTotalNum/podTotalNum;
 
 	static String[] host;

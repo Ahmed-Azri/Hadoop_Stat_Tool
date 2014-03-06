@@ -35,11 +35,8 @@ public class MRStat
 		total = 0;
 		total_without_local = 0;
 		receiveSize = new HashMap<String, Integer>();
-		receiveSize.put("master", new Integer(0));
-		receiveSize.put("slave1", new Integer(0));
-		receiveSize.put("slave2", new Integer(0));
-		receiveSize.put("slave3", new Integer(0));
-
+		for(int i = 1; i<=16; i++)
+			receiveSize.put("node" + new Integer(i), new Integer(0));
 		duringTimeTable = new LinkedList<DuringTime>();
 	}
 
