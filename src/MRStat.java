@@ -309,13 +309,10 @@ public class MRStat
 				out.write(t.toString());
 				out.write("\n");
 			}
+			out.close();
 		} catch(Exception e)
 		{
 			e.printStackTrace();
-		}
-		finally
-		{
-			out.close();
 		}
 	}
 }
