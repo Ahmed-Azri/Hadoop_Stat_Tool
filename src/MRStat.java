@@ -37,6 +37,7 @@ public class MRStat
 		receiveSize = new HashMap<String, Integer>();
 		for(int i = 1; i<=16; i++)
 			receiveSize.put("node" + new Integer(i), new Integer(0));
+
 		duringTimeTable = new LinkedList<DuringTime>();
 	}
 
@@ -285,20 +286,37 @@ public class MRStat
 	}
 	public static void main(String[] args)
 	{
-		if(args.length <3)
+		if(args.length <2)
 		{
-			System.out.println("Usage: MRStat <localSide> <OutputFile> <filenameList...>");
+			System.out.println("Usage: MRStat <OutputFile> <FilenameList>");
 			return;
 		}
-
-		String localSide = args[0];
-		String outputFile = args[1];
-		int listLen = args.length - 2;
-		String[] filenameList = new String[listLen];
-		for(int i=0;i<listLen;i++)
-			filenameList[i] = new String(args[i + 2]);
-		MRStat t = new MRStat(localSide, filenameList);
-		t.doIt();
-		t.dumpFile(outputFile);
+		try
+		{
+			String outputFile = args[0];
+			FileWriter fstream = new FileWriter(fn);
+			BufferedWriter out = new BufferedWriter(fstream);
+			out.write(this.toString());
+		
+			for(String file : args)
+			{
+				if(!file.startsWith("node") || file.equals(outputFile))
+					continue;
+				String localSide = file;
+				String[] fileList = new String[1];
+				fileList[0] = file;
+				MRStat t = new MRStat(localSide, fileList);
+				t.doIt();
+				out.write(t.toString());
+				out.write("\n");
+			}
+		} catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+		finally
+		{
+			out.close();
+		}
 	}
 }
