@@ -16,38 +16,14 @@ public class MRStat
 {
 	SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
 
-	/**
-	 * localSide is the host that received data from others.
-	 */
 	String localSide;
 
-	/**
-	 * fileNameList is the Reducer logs of the localSide.
-	 */
 	String []fileNameList;
 	DataInputStream in;
 
-	/**
-	 * total received bytes (including localSide itself).
-	 */
 	int total;
-
-	/**
-	 * total remote received bytes.
-	 */
 	int total_without_local;
-
-	/**
-	 * The total received bytes from a host.
-	 * key: remote host
-	 */
 	HashMap<String, Integer> receiveSize;
-
-	/**
-	 * A list that record the timestamp of receiving data to localSide.
-	 * The list is in the increasing order.
-	 * The DuringTime class is the private class of MRStat.
-	 */
 	LinkedList<DuringTime> duringTimeTable;
 
 	public MRStat(String localSide, String[] fileNameList)
@@ -67,13 +43,6 @@ public class MRStat
 		duringTimeTable = new LinkedList<DuringTime>();
 	}
 
-	/**
-	 * Main method to count the result.
-	 * In this method we iterate the file, for each file we
-	 * fetch the keyword "Start" and "End" to decide the data
-	 * transferring duration. If we miss a keyword "End", it 
-	 * may be a cleanup task, we ignore it.
-	 */
 	public void doIt()
 	{
 		for(String fileName : fileNameList)
@@ -179,9 +148,6 @@ public class MRStat
 		}
 	}
 
-	/*
-	 * A method to show the result to a specific file
-	 */
 	public void dumpFile(String fn)
 	{
 		try
@@ -227,32 +193,12 @@ public class MRStat
 	 */
 	private class DuringTime implements Comparable<DuringTime>
 	{
-		/**
-		 * String of the start time.
-		 * Format: HH:mm:ss
-		 */
 		String start;
-		/**
-		 * String of the end time.
-		 * Format: HH:mm:ss
-		 */
 		String end;
 
-		/**
-		 * Remote side that send data to the localSide.
-		 */
 		String remote;
-
-		/**
-		 * The date of the start time.
-		 */
 		Date date;
 
-		/**
-		 * A flag to indicate if the instance has both start and end time.
-		 * If there are both start and end time, it is a complete transferring,
-		 * or some error occur (may be a cleanup task).
-		 */
 		boolean _end;
 
 		public DuringTime(String remote, String start)

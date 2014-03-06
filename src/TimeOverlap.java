@@ -19,29 +19,12 @@ public class TimeOverlap
 {
 	String inputFileName;
 
-	/**
-	 * A tmp instance that holds the record of data transferring.
-	 * key: host that receives data
-	 * value: a priority queue holding the list of record
-	 */
 	HashMap<String, DuringTimePQ> timelineToFetch;
 
-	/**
-	 * A list of timestamps we compute.
-	 * We seperate the start and end time into different DuringTime instance.
-	 * Pair: First -> dst Second -> src
-	 */
 	LinkedList<Pair<String, DuringTime>> timeline;
 
-	/**
-	 * Another result list recording the overlap flows stat.
-	 */
 	LinkedList<StatTimeLineStruct> statTimelineList;
 	
-	/**
-	 * A flag to check if the input file is correct.
-	 * If the flag is false, we refuse to compute the result.
-	 */
 	boolean fileOkay;
 
 	public TimeOverlap(String inputFile)
@@ -144,9 +127,6 @@ public class TimeOverlap
 		}
 	}
 
-	/*
-	 * Main method to compute the result.
-	 */
 	public void doIt()
 	{
 		while(true)
@@ -406,44 +386,13 @@ public class TimeOverlap
 	 */
 	class StatTimeLineStruct
 	{
-		/**
-		 * Start date of the flow.
-		 */
 		Date startDate;
-
-		/**
-		 * End date of the flow.
-		 */
 		Date endDate;
-
-		/**
-		 * The total num of flow in the duration.
-		 */
 		int flowCount;
-
-		/**
-		 * The total local num of flow in the duration.
-		 */
 		int localCount;
-
-		/**
-		 * String of start startDate.
-		 */
 		String startDateStr;
-
-		/**
-		 * String of end startDate.
-		 */
 		String endDateStr;
-
-		/**
-		 * The num of flow from podLocalHost[0] to podLocalHost[1]
-		 */
 		int from_0_to_1;
-
-		/**
-		 * The num of flow from podLocalHost[1] to podLocalHost[0]
-		 */
 		int from_1_to_0;
 		public StatTimeLineStruct(Date startDate, Date endDate, int flowCount, 
 								int flowInSecond, int from_0_to_1, int from_1_to_0)
