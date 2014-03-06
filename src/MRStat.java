@@ -294,9 +294,8 @@ public class MRStat
 		try
 		{
 			String outputFile = args[0];
-			FileWriter fstream = new FileWriter(fn);
+			FileWriter fstream = new FileWriter(outputFile);
 			BufferedWriter out = new BufferedWriter(fstream);
-			out.write(this.toString());
 		
 			for(String file : args)
 			{
