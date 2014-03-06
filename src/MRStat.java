@@ -6,6 +6,7 @@ import java.io.*;
 import java.util.StringTokenizer;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Collections;
 
@@ -36,7 +37,7 @@ public class MRStat
 		total_without_local = 0;
 		receiveSize = new HashMap<String, Integer>();
 		for(int i = 1; i<=16; i++)
-			receiveSize.put("node" + new Integer(i), new Integer(0));
+			receiveSize.put("datanode" + new Integer(i), new Integer(0));
 
 		duringTimeTable = new LinkedList<DuringTime>();
 	}
@@ -291,23 +292,38 @@ public class MRStat
 			System.out.println("Usage: MRStat <OutputFile> <FilenameList>");
 			return;
 		}
+		ArrayList<String> argList = new ArrayList<String>();
+		for(int i=1;i<args.length; i++)
+			argList.add(args[i]);
+		
+		Collections.sort(argList);
 		try
 		{
 			String outputFile = args[0];
 			FileWriter fstream = new FileWriter(outputFile);
 			BufferedWriter out = new BufferedWriter(fstream);
 		
-			for(String file : args)
+			for(String filename : argList)
 			{
-				if(!file.startsWith("node") || file.equals(outputFile))
-					continue;
-				String localSide = file;
-				String[] fileList = new String[1];
-				fileList[0] = file;
-				MRStat t = new MRStat(localSide, fileList);
-				t.doIt();
-				out.write(t.toString());
-				out.write("\n");
+				String[] pathOfFile = filename.split("/");
+				for(String subPathOfFile : pathOfFile)
+				{
+					boolean startWithNode = subPathOfFile.startsWith("node");
+					boolean startWithDataNode = subPathOfFile.startsWith("datanode");
+					if(startWithNode || startWithDataNode)
+					{
+						String localSide = subPathOfFile;
+						if(startWithNode)
+							localSide = "data" + subPathOfFile;
+						String[] fileList = new String[1];
+						fileList[0] = filename;
+						MRStat t = new MRStat(localSide, fileList);
+						t.doIt();
+						out.write(t.toString());
+						out.write("\n");
+					}
+				}
+				
 			}
 			out.close();
 		} catch(Exception e)
